@@ -29,6 +29,9 @@ def generate_report(df):
     merged['False_Pred_Count'] = merged['False_Pred_Count'].astype(int)
     merged[['Max_True','Min_True','Max_False','Min_False']] = merged[['Max_True','Min_True','Max_False','Min_False']].round(2)
 
+    # Capitalize class labels
+    merged['Actual Class'] = merged['Actual Class'].str.title()
+
     total_row = pd.DataFrame([{
         'Actual Class': 'Total',
         'True_Pred_Count': int(merged['True_Pred_Count'].sum()),
@@ -89,12 +92,18 @@ def style_excel(df):
 # -------------------- STREAMLIT UI -------------------- #
 st.set_page_config(page_title="📊 Detection Report Generator", layout="centered")
 st.title("📈 YOLOv8 Prediction Report Generator")
-st.markdown("Upload your prediction result Excel file to generate a detailed report.")
+st.markdown("Upload your YOLOv8 results file (.csv or .xlsx) to generate a styled performance report.")
 
-uploaded_file = st.file_uploader("Upload Excel File", type=["xlsx"])
+uploaded_file = st.file_uploader("Upload Result File", type=["csv", "xlsx"])
 
 if uploaded_file is not None:
-    df = pd.read_excel(uploaded_file)
+    file_type = uploaded_file.name.split('.')[-1]
+
+    if file_type == 'csv':
+        df = pd.read_csv(uploaded_file)
+    else:
+        df = pd.read_excel(uploaded_file)
+
     report_df = generate_report(df)
     styled_excel = style_excel(report_df)
 
@@ -102,7 +111,7 @@ if uploaded_file is not None:
     st.dataframe(report_df)
 
     st.download_button(
-        label="📥 Download Styled Report",
+        label="📥 Download Styled Report (Excel)",
         data=styled_excel,
         file_name="Styled_True_False_Report.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
