@@ -29,8 +29,16 @@ def generate_report(df):
     merged['False_Pred_Count'] = merged['False_Pred_Count'].astype(int)
     merged[['Max_True','Min_True','Max_False','Min_False']] = merged[['Max_True','Min_True','Max_False','Min_False']].round(2)
 
+    # Add Total_Count column
+    total_count = df.groupby('Actual Class').size().reset_index(name='Total_Count')
+    merged = pd.merge(merged, total_count, on='Actual Class', how='left')
+
     # Capitalize class labels
     merged['Actual Class'] = merged['Actual Class'].str.title()
+
+    # Reorder columns to have 'Total_Count' next to 'Actual Class'
+    merged = merged[['Actual Class', 'Total_Count', 'True_Pred_Count', 'Max_True', 'Min_True', 'AVG_True',
+                     'False_Pred_Count', 'Max_False', 'Min_False', 'AVG_False']]
 
     total_row = pd.DataFrame([{
         'Actual Class': 'Total',
@@ -41,11 +49,13 @@ def generate_report(df):
         'False_Pred_Count': int(merged['False_Pred_Count'].sum()),
         'Max_False': merged['Max_False'].max(),
         'Min_False': merged['Min_False'].min(),
-        'AVG_False': round(false_preds['Confidence'].mean(), 2)
+        'AVG_False': round(false_preds['Confidence'].mean(), 2),
+        'Total_Count': int(df.shape[0])  # Total count of all rows (or you can adjust this logic as needed)
     }])
 
     final_df = pd.concat([merged, total_row], ignore_index=True)
     return final_df
+
 
 def style_excel(df):
     output = BytesIO()
@@ -79,9 +89,9 @@ def style_excel(df):
             if is_total_row:
                 cell.fill = yellow_fill
                 cell.font = bold_font
-            elif col in [2, 3, 4, 5]:
+            elif col in [3, 4, 5, 6]:
                 cell.fill = green_fill
-            elif col in [6, 7, 8, 9]:
+            elif col in [7, 8, 9, 10]:
                 cell.fill = red_fill
 
     styled_output = BytesIO()
