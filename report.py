@@ -9,39 +9,47 @@ def generate_report(df):
     df['Actual Class'] = df['Actual Class'].astype(str).str.strip().str.lower()
     df['Detected Class'] = df['Detected Class'].astype(str).str.strip().str.lower()
 
+    # True predictions: group by Actual Class
     true_preds = df[df['Actual Class'] == df['Detected Class']]
     true_grouped = true_preds.groupby('Actual Class')['Confidence'].agg(
         True_Pred_Count='count', Max_True='max', Min_True='min', AVG_True='mean'
     ).reset_index()
     true_grouped['AVG_True'] = true_grouped['AVG_True'].round(2)
 
+    # False predictions: group by Detected Class
     false_preds = df[
         (df['Detection Type'].str.lower() == 'false') &
         (df['Detected Class'].str.lower() != 'no detection')
     ]
-    false_grouped = false_preds.groupby('Actual Class')['Confidence'].agg(
+    false_grouped = false_preds.groupby('Detected Class')['Confidence'].agg(
         False_Pred_Count='count', Max_False='max', Min_False='min', AVG_False='mean'
     ).reset_index()
+    false_grouped.rename(columns={'Detected Class': 'Actual Class'}, inplace=True)
     false_grouped['AVG_False'] = false_grouped['AVG_False'].round(2)
 
+    # Merge true and false on Actual Class (true is actual, false is detected)
     merged = pd.merge(true_grouped, false_grouped, on='Actual Class', how='outer').fillna(0)
     merged['True_Pred_Count'] = merged['True_Pred_Count'].astype(int)
     merged['False_Pred_Count'] = merged['False_Pred_Count'].astype(int)
-    merged[['Max_True','Min_True','Max_False','Min_False']] = merged[['Max_True','Min_True','Max_False','Min_False']].round(2)
+    merged[['Max_True', 'Min_True', 'Max_False', 'Min_False']] = merged[[
+        'Max_True', 'Min_True', 'Max_False', 'Min_False']].round(2)
 
-    # Add Total_Count column
+    # Total count by Actual Class only (unchanged)
     total_count = df.groupby('Actual Class').size().reset_index(name='Total_Count')
+    total_count['Actual Class'] = total_count['Actual Class'].str.lower()
     merged = pd.merge(merged, total_count, on='Actual Class', how='left')
 
-    # Capitalize class labels
+    # Capitalize class names
     merged['Actual Class'] = merged['Actual Class'].str.title()
 
-    # Reorder columns to have 'Total_Count' next to 'Actual Class'
+    # Reorder columns
     merged = merged[['Actual Class', 'Total_Count', 'True_Pred_Count', 'Max_True', 'Min_True', 'AVG_True',
                      'False_Pred_Count', 'Max_False', 'Min_False', 'AVG_False']]
 
+    # Total row
     total_row = pd.DataFrame([{
         'Actual Class': 'Total',
+        'Total_Count': int(df.shape[0]),
         'True_Pred_Count': int(merged['True_Pred_Count'].sum()),
         'Max_True': merged['Max_True'].max(),
         'Min_True': merged['Min_True'].min(),
@@ -49,13 +57,11 @@ def generate_report(df):
         'False_Pred_Count': int(merged['False_Pred_Count'].sum()),
         'Max_False': merged['Max_False'].max(),
         'Min_False': merged['Min_False'].min(),
-        'AVG_False': round(false_preds['Confidence'].mean(), 2),
-        'Total_Count': int(df.shape[0])  # Total count of all rows (or you can adjust this logic as needed)
+        'AVG_False': round(false_preds['Confidence'].mean(), 2)
     }])
 
     final_df = pd.concat([merged, total_row], ignore_index=True)
     return final_df
-
 
 def style_excel(df):
     output = BytesIO()
@@ -120,9 +126,13 @@ if uploaded_file is not None:
     st.success("✅ Report generated successfully!")
     st.dataframe(report_df)
 
+        # Extract original filename without extension
+    original_name = ".".join(uploaded_file.name.split(".")[:-1])
+    output_file_name = f"True_False_Count{original_name}.xlsx"
+
     st.download_button(
         label="📥 Download Styled Report (Excel)",
         data=styled_excel,
-        file_name="Styled_True_False_Report.xlsx",
+        file_name=output_file_name,
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
