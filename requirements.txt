@@ -4,3 +4,4 @@ openpyxl
 xlsxwriter
 pymongo
 bcrypt
+dotenv

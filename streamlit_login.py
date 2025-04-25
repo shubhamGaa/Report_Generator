@@ -4,12 +4,16 @@ from pymongo.errors import DuplicateKeyError
 import bcrypt
 from datetime import datetime
 import time
-
+import os
+from dotenv import load_dotenv
 # Initialize MongoDB connection
+
+load_dotenv()
+
 def get_db_connection():
     try:
         # Replace with your actual connection string and password
-        connection_string = "mongodb+srv://shubhamg:UjxcNNLJNBpPrryK@cluster0.w9xb667.mongodb.net/"
+        connection_string = os.getenv("MONGO_URI")
         client = MongoClient(connection_string)
         db = client['user_authentication']
         return db
