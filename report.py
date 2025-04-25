@@ -4,8 +4,10 @@ from io import BytesIO
 from openpyxl import load_workbook
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
+import os
 
 def generate_report(df):
+    # Normalize class names
     df['Actual Class'] = df['Actual Class'].astype(str).str.strip().str.lower()
     df['Detected Class'] = df['Detected Class'].astype(str).str.strip().str.lower()
 
@@ -27,17 +29,20 @@ def generate_report(df):
     false_grouped.rename(columns={'Detected Class': 'Actual Class'}, inplace=True)
     false_grouped['AVG_False'] = false_grouped['AVG_False'].round(2)
 
-    # Merge true and false on Actual Class (true is actual, false is detected)
+    # Merge true and false counts
     merged = pd.merge(true_grouped, false_grouped, on='Actual Class', how='outer').fillna(0)
     merged['True_Pred_Count'] = merged['True_Pred_Count'].astype(int)
     merged['False_Pred_Count'] = merged['False_Pred_Count'].astype(int)
     merged[['Max_True', 'Min_True', 'Max_False', 'Min_False']] = merged[[
         'Max_True', 'Min_True', 'Max_False', 'Min_False']].round(2)
 
-    # Total count by Actual Class only (unchanged)
+    # Total count by Actual Class
     total_count = df.groupby('Actual Class').size().reset_index(name='Total_Count')
     total_count['Actual Class'] = total_count['Actual Class'].str.lower()
     merged = pd.merge(merged, total_count, on='Actual Class', how='left')
+
+    # Replace missing total count with 0
+    merged['Total_Count'] = merged['Total_Count'].fillna(0).astype(int)
 
     # Capitalize class names
     merged['Actual Class'] = merged['Actual Class'].str.title()
@@ -53,11 +58,11 @@ def generate_report(df):
         'True_Pred_Count': int(merged['True_Pred_Count'].sum()),
         'Max_True': merged['Max_True'].max(),
         'Min_True': merged['Min_True'].min(),
-        'AVG_True': round(true_preds['Confidence'].mean(), 2),
+        'AVG_True': round(true_preds['Confidence'].mean(), 2) if not true_preds.empty else 0,
         'False_Pred_Count': int(merged['False_Pred_Count'].sum()),
         'Max_False': merged['Max_False'].max(),
         'Min_False': merged['Min_False'].min(),
-        'AVG_False': round(false_preds['Confidence'].mean(), 2)
+        'AVG_False': round(false_preds['Confidence'].mean(), 2) if not false_preds.empty else 0
     }])
 
     final_df = pd.concat([merged, total_row], ignore_index=True)
@@ -114,6 +119,7 @@ uploaded_file = st.file_uploader("Upload Result File", type=["csv", "xlsx"])
 
 if uploaded_file is not None:
     file_type = uploaded_file.name.split('.')[-1]
+    base_filename = os.path.splitext(uploaded_file.name)[0]  # Get filename without extension
 
     if file_type == 'csv':
         df = pd.read_csv(uploaded_file)
@@ -126,13 +132,10 @@ if uploaded_file is not None:
     st.success("✅ Report generated successfully!")
     st.dataframe(report_df)
 
-        # Extract original filename without extension
-    original_name = ".".join(uploaded_file.name.split(".")[:-1])
-    output_file_name = f"True_False_Count{original_name}.xlsx"
-
     st.download_button(
         label="📥 Download Styled Report (Excel)",
         data=styled_excel,
-        file_name=output_file_name,
+        file_name=f"{base_filename}_styled_report.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+
